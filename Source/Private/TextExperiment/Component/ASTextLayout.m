@@ -18,6 +18,36 @@
 
 #import <pthread.h>
 
+static CFIndex getTruncationIndex(CTLineRef line, CTLineRef trunc)
+{
+  if (line == nil || trunc == nil) return 0;
+  
+  CFIndex truncCount = CFArrayGetCount(CTLineGetGlyphRuns(trunc));
+  
+  CFArrayRef lineRuns = CTLineGetGlyphRuns(line);
+  CFIndex lineRunsCount = CFArrayGetCount(lineRuns);
+  
+  CFIndex index = lineRunsCount - truncCount - 1;
+  
+  // If the index is negative, CFArrayGetValueAtIndex will crash on iOS 10 beta.
+  // We will just return 0 because on iOS 9, CFArrayGetValueAtIndex would have
+  // returned nil anyways and the return truncation index would be 0.
+  // Apple might have enabled an assert that only appears in the iOS 10 beta
+  // release, but we will just avoid passing invalid arguments just to be safe.
+  if (index < 0)
+  {
+    return 0;
+  }
+  else
+  {
+    CTRunRef lineLastRun = CFArrayGetValueAtIndex(lineRuns, index);
+    
+    CFRange lastRunRange = CTRunGetStringRange(lineLastRun);
+    
+    return lastRunRange.location = lastRunRange.length;
+  }
+}
+
 const CGSize ASTextContainerMaxSize = (CGSize){0x100000, 0x100000};
 
 typedef struct {
@@ -838,10 +868,16 @@ dispatch_semaphore_signal(_lock);
               [lastLineText appendAttributedString:[text attributedSubstringFromRange:removedLines[i].range]];
             }
           }
+          
+          layout.truncatedWidth = truncatedWidth;
 
           CTLineRef ctLastLineExtend = CTLineCreateWithAttributedString((CFAttributedStringRef) lastLineText);
           if (ctLastLineExtend) {
             CTLineRef ctTruncatedLine = CTLineCreateTruncatedLine(ctLastLineExtend, truncatedWidth, type, truncationTokenLine);
+            
+            CFIndex truncatedIndex = getTruncationIndex(ctTruncatedLine, truncationTokenLine);
+            layout.truncationIndex = truncatedIndex;
+            
             CFRelease(ctLastLineExtend);
             if (ctTruncatedLine) {
               truncatedLine = [ASTextLine lineWithCTLine:ctTruncatedLine position:lastLine.position vertical:isVerticalForm];

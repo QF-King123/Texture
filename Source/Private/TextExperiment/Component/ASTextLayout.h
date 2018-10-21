@@ -97,6 +97,7 @@ AS_EXTERN const CGSize ASTextContainerMaxSize;
 /// This modifier is applied to the lines before the layout is completed,
 /// give you a chance to modify the line position. Default is nil.
 @property (nullable, copy) id<ASTextLinePositionModifier> linePositionModifier;
+
 @end
 
 
@@ -262,6 +263,9 @@ AS_EXTERN const CGSize ASTextContainerMaxSize;
 @property (nonatomic, readonly) BOOL needDrawStrikethrough;
 ///< Has border attribute
 @property (nonatomic, readonly) BOOL needDrawBorder;
+
+@property CGFloat truncatedWidth;
+@property CFIndex truncationIndex;
 
 
 #pragma mark - Query information from text layout

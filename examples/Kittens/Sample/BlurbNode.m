@@ -64,7 +64,7 @@ static NSString *kLinkAttributeName = @"PlaceKittenNodeLinkAttributeName";
   NSAttributedString *additionalTruncationMessage = [[NSAttributedString alloc] initWithString:@" Read More " attributes:@{}];
   _textNode.additionalTruncationMessage = additionalTruncationMessage;
  
-  _textNode.passthroughNonlinkTouches = NO;
+//  _textNode.passthroughNonlinkTouches = NO;
   
   // add it as a subnode, and we're done
   [self addSubnode:_textNode];
