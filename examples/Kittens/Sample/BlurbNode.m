@@ -47,7 +47,9 @@ static NSString *kLinkAttributeName = @"PlaceKittenNodeLinkAttributeName";
   _textNode.maximumNumberOfLines = 1;
 
   // generate an attributed string using the custom link attribute specified above
-  NSString *blurb = @"Text link: some some some more even more text and even more text";
+  ////NSString *blurb = @"Text link: some some some more even more text and even more text";
+//  NSString *blurb = @"Text link: some some";
+  NSString *blurb = @"Text link: some some some more even more text and even more text";  
   NSMutableAttributedString *string = [[NSMutableAttributedString alloc] initWithString:blurb];
   // [string addAttribute:NSFontAttributeName value:[UIFont fontWithName:@"HelveticaNeue-Light" size:16.0f] range:NSMakeRange(0, blurb.length)];
   [string addAttributes:@{
@@ -63,6 +65,10 @@ static NSString *kLinkAttributeName = @"PlaceKittenNodeLinkAttributeName";
   
   NSAttributedString *additionalTruncationMessage = [[NSAttributedString alloc] initWithString:@" Read More " attributes:@{}];
   _textNode.additionalTruncationMessage = additionalTruncationMessage;
+
+  //  _textNode.truncationMode = NSLineBreakByTruncatingHead;
+//    _textNode.truncationMode = NSLineBreakByTruncatingHead;
+  _textNode.truncationMode = NSLineBreakByTruncatingMiddle;  
  
 //  _textNode.passthroughNonlinkTouches = NO;
   

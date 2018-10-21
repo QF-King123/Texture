@@ -30,36 +30,6 @@
 #import <AsyncDisplayKit/ASTextLayout.h>
 #import <AsyncDisplayKit/ASThread.h>
 
-static CFIndex getTruncationIndex2(CTLineRef line, CTLineRef trunc)
-{
-  if (line == nil || trunc == nil) return 0;
-  
-  CFIndex truncCount = CFArrayGetCount(CTLineGetGlyphRuns(trunc));
-  
-  CFArrayRef lineRuns = CTLineGetGlyphRuns(line);
-  CFIndex lineRunsCount = CFArrayGetCount(lineRuns);
-  
-  CFIndex index = lineRunsCount - truncCount - 1;
-  
-  // If the index is negative, CFArrayGetValueAtIndex will crash on iOS 10 beta.
-  // We will just return 0 because on iOS 9, CFArrayGetValueAtIndex would have
-  // returned nil anyways and the return truncation index would be 0.
-  // Apple might have enabled an assert that only appears in the iOS 10 beta
-  // release, but we will just avoid passing invalid arguments just to be safe.
-  if (index < 0)
-  {
-    return 0;
-  }
-  else
-  {
-    CTRunRef lineLastRun = (CTRunRef)CFArrayGetValueAtIndex(lineRuns, index);
-    
-    CFRange lastRunRange = CTRunGetStringRange(lineLastRun);
-    
-    return lastRunRange.location = lastRunRange.length;
-  }
-}
-
 @interface ASTextCacheValue : NSObject {
   @package
   ASDN::Mutex _m;
@@ -134,7 +104,7 @@ static NSArray *DefaultLinkAttributeNames = @[ NSLinkAttributeName ];
     // Disable user interaction for text node by default.
     self.userInteractionEnabled = NO;
     self.needsDisplayOnBoundsChange = YES;
-   
+    
     // The default truncation type is end for truncation and additional truncation text
     _textContainer.truncationType = ASTextTruncationTypeEnd;
     
@@ -611,61 +581,64 @@ static NSArray *DefaultLinkAttributeNames = @[ NSLinkAttributeName ];
 
   ASTextRange *range = [layout closestTextRangeAtPoint:point];
   
-//  CFIndex idx = CTLineGetStringIndexForPosition(layout.truncatedLine.CTLine, point);
-// 
-//  NSAttributedString *s = layout.text;
-//  CFArrayRef runCount = CTLineGetGlyphRuns(layout.truncatedLine.CTLine);
-//  for (CFIndex g = 0; g < CFArrayGetCount(runCount); g++) {
-//    CTRunRef run = (CTRunRef)CFArrayGetValueAtIndex(runCount, g);
-//    CFIndex glyphCount = CTRunGetGlyphCount(run);
-//    CFIndex *i = (CFIndex *)CTRunGetStringIndicesPtr(run);
-//    
-//    const CGGlyph *glyphs = CTRunGetGlyphsPtr(run);
-//    
-//    for (int j = 0; j < glyphCount; j++, i++) {
-////      NSLog(@"%li: %@", (long)*i, [s attributedSubstringFromRange:NSMakeRange(*i, 1)]);
-//    }
-//  }
-//  
-//  CTLineRef truncationTokenLine = CTLineCreateWithAttributedString((CFAttributedStringRef) self.additionalTruncationMessage);
-  
-  // CFIndex idx2 = getTruncationIndex2(layout.truncatedLine.CTLine, truncationTokenLine);
-  
-//  CTRunRef run = (__bridge CTRunRef)((__bridge NSArray *)CTLineGetGlyphRuns(layout.truncatedLine.CTLine))[1];
-//  CFIndex glyphCount = CTRunGetGlyphCount(run);
-//  CFIndex *i = (CFIndex *)CTRunGetStringIndicesPtr(run);
-//  
-//  for (int j = 0; j < glyphCount; j++, i++) {
-//    NSLog(@"%li: %@", (long)*i, [s attributedSubstringFromRange:NSMakeRange(*i, 1)]);
-//  }
-  
-  // Check if the range is within the truncation range
-  if (_textContainer.truncationType == ASTextTruncationTypeEnd) {
-    CTLineRef truncatedCTLine = layout.truncatedLine.CTLine; 
-    if (truncatedCTLine != NULL) {
-      CFIndex stringIndexForPosition = CTLineGetStringIndexForPosition(truncatedCTLine, point);
-      if (stringIndexForPosition != kCFNotFound) {
-        CTLineRef truncationTokenLine = CTLineCreateWithAttributedString((CFAttributedStringRef)_additionalTruncationMessage);
-        CFIndex firstTruncatedTokenIndex = CTLineGetGlyphCount(truncatedCTLine) - CTLineGetGlyphCount(truncationTokenLine);
-        if (stringIndexForPosition > firstTruncatedTokenIndex) {
-          if (inAdditionalTruncationMessageOut != NULL) {
-            *inAdditionalTruncationMessageOut = YES;
+  // Check if the range is within the additional truncation range
+  BOOL inAdditionalTruncationMessage = NO;
+  CTLineRef truncatedCTLine = layout.truncatedLine.CTLine;
+  if (truncatedCTLine != NULL && _additionalTruncationMessage != nil) {
+    CFIndex stringIndexForPosition = CTLineGetStringIndexForPosition(truncatedCTLine, point);
+    if (stringIndexForPosition != kCFNotFound) {
+      CFIndex truncatedCTLineGlyphCount = CTLineGetGlyphCount(truncatedCTLine);
+      
+      CTLineRef truncationTokenLine =
+        CTLineCreateWithAttributedString((CFAttributedStringRef)_truncationAttributedText);
+      CFIndex truncationTokenLineGlyphCount =
+        truncationTokenLine ? CTLineGetGlyphCount(truncationTokenLine) : 0;
+      
+      CTLineRef additionalTruncationTokenLine = 
+        CTLineCreateWithAttributedString((CFAttributedStringRef)_additionalTruncationMessage);
+      CFIndex additionalTruncationTokenLineGlyphCount =
+        additionalTruncationTokenLine ? CTLineGetGlyphCount(additionalTruncationTokenLine) : 0;   
+      
+      switch (_textContainer.truncationType) {
+        case ASTextTruncationTypeStart: {
+          if (stringIndexForPosition > truncationTokenLineGlyphCount &&
+              stringIndexForPosition < (additionalTruncationTokenLineGlyphCount + truncationTokenLineGlyphCount)) {
+            inAdditionalTruncationMessage = YES;
+          }      
+          break;
+        }
+        case ASTextTruncationTypeMiddle: {
+          CFIndex firstTruncatedTokenIndex = (truncatedCTLineGlyphCount - (truncationTokenLineGlyphCount + additionalTruncationTokenLineGlyphCount)) / 2.0;
+          if ((firstTruncatedTokenIndex + truncationTokenLineGlyphCount) < stringIndexForPosition &&
+              stringIndexForPosition < (firstTruncatedTokenIndex + truncationTokenLineGlyphCount + additionalTruncationTokenLineGlyphCount)) {
+            inAdditionalTruncationMessage = YES;
+          }      
+          break;
+        }
+        case ASTextTruncationTypeEnd: {
+          if (stringIndexForPosition > (truncatedCTLineGlyphCount - additionalTruncationTokenLineGlyphCount)) {
+            inAdditionalTruncationMessage = YES;
           }
-          return nil;      
-        }      
+          break; 
+        }
+        default:
+          // For now, assume that a tap inside this text, but outside the text range is a tap on the
+          // truncation token.
+          if (![layout textRangeAtPoint:point]) {
+            inAdditionalTruncationMessage = YES;
+          }
+          break;
       }
-    }
-  } else {
-    // For now, assume that a tap inside this text, but outside the text range is a tap on the
-    // truncation token.
-    if (![layout textRangeAtPoint:point]) {
-      if (inAdditionalTruncationMessageOut != NULL) {
-        *inAdditionalTruncationMessageOut = YES;
-      }
-      return nil;
     }
   }
-  
+
+  if (inAdditionalTruncationMessage) {
+    if (inAdditionalTruncationMessageOut != NULL) {
+      *inAdditionalTruncationMessageOut = YES;
+    }
+    return nil;
+  }
+
   NSRange effectiveRange = NSMakeRange(0, 0);
   for (__strong NSString *attributeName in self.linkAttributeNames) {
     id value = [self.attributedText attribute:attributeName atIndex:range.start.offset longestEffectiveRange:&effectiveRange inRange:clampedRange];
@@ -871,7 +844,6 @@ static NSArray *DefaultLinkAttributeNames = @[ NSLinkAttributeName ];
   
   if (inAdditionalTruncationMessage) {
     return !_passthroughNonlinkTouches;
-//    return YES;    
   } else if (range.length && !linkCrossesVisibleRange && linkAttributeValue != nil && linkAttributeName != nil) {
     return YES;
   } else {
